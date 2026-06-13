@@ -18,14 +18,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ note: Notification) {
         // Single instance: if another copy is already running, bow out so we never
-        // show two menu-bar icons.
+        // show two menu-bar icons. Guard on a non-nil bundle id — when the bare
+        // binary is run directly (e.g. while debugging) the id is nil, and matching
+        // `bundleIdentifier == nil` would wrongly match unrelated daemons and make us
+        // self-terminate. Only enforce when launched from the .app bundle.
         let me = NSRunningApplication.current
-        let others = NSWorkspace.shared.runningApplications.filter {
-            $0.bundleIdentifier == me.bundleIdentifier && $0.processIdentifier != me.processIdentifier
-        }
-        if !others.isEmpty {
-            NSApp.terminate(nil)
-            return
+        if let myID = me.bundleIdentifier {
+            let others = NSWorkspace.shared.runningApplications.filter {
+                $0.bundleIdentifier == myID && $0.processIdentifier != me.processIdentifier
+            }
+            if !others.isEmpty {
+                NSApp.terminate(nil)
+                return
+            }
         }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
