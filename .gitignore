@@ -1,0 +1,6 @@
+# Build artifacts
+ClaudeUsageBar
+ClaudeUsageBar.app/
+*.o
+*.swiftmodule
+.DS_Store
