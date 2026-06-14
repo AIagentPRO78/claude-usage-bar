@@ -20,8 +20,13 @@ swiftc -O -o "$BIN" main.swift UsageCore.swift -framework Cocoa
 
 echo "Assembling $APP..."
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 mv "$BIN" "$APP/Contents/MacOS/$BIN"
+
+# App icon (master art + .icns are committed under assets/; regenerate with ./make-icon.sh).
+if [[ -f assets/AppIcon.icns ]]; then
+    cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+fi
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -31,6 +36,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleExecutable</key><string>$BIN</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
   <key>CFBundleName</key><string>Claude Usage</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
