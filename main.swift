@@ -34,6 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        // Persist the item's menu-bar position. Without this, dragging it out from
+        // behind the notch (Cmd-drag) wouldn't survive a relaunch.
+        statusItem.autosaveName = "com.ellerywee.claudeusagebar.item"
         statusItem.isVisible = true
         if let b = statusItem.button {
             b.image = NSImage(systemSymbolName: "sparkle", accessibilityDescription: "Claude usage")
