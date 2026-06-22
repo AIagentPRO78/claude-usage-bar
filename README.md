@@ -1,5 +1,9 @@
 # Claude Usage Bar
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-macOS-black.svg)
+![Language](https://img.shields.io/badge/Swift-5-orange.svg)
+
 Native macOS menu-bar app that tracks Claude Code usage by parsing
 `~/.claude/projects/**/*.jsonl` directly. No Node, no external services.
 
@@ -91,3 +95,7 @@ rm ~/Library/LaunchAgents/com.ellerywee.claudeusagebar.plist
 killall ClaudeUsageBar
 rm -rf ~/Applications/ClaudeUsageBar.app
 ```
+
+## License
+
+[MIT](LICENSE) © Ellery Wee
