@@ -7,6 +7,13 @@
 Native macOS menu-bar app that tracks Claude Code usage by parsing
 `~/.claude/projects/**/*.jsonl` directly. No Node, no external services.
 
+<p align="center">
+  <img src="assets/screenshot.png" width="300"
+       alt="Claude Usage Bar dropdown: current 5-hour block, today, and month-to-date breakdowns with per-model splits (figures blurred)">
+  <br>
+  <em>The dropdown — current 5-hour block, today, and month-to-date, each split by token type and model. (Numbers blurred here.)</em>
+</p>
+
 Shows:
 - **Current 5-hour block** — token count, API-equivalent cost, and time until reset.
   Blocks follow the same rolling 5-hour window logic as `ccusage` (first activity
