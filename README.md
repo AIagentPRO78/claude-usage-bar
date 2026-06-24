@@ -20,6 +20,18 @@ Shows:
   floored to the hour; a new block starts after a 5h gap or once 5h elapses).
 - **Today** — token count and cost since local midnight.
 - Per-model breakdown (Opus / Sonnet / Haiku) in the dropdown.
+- **Enterprise** — organization rollup (seats assigned + active, DAU/WAU/MAU, month-to-date
+  Requests / Tokens / Cost) and a named list of top 10 active seats by cost.
+  Sourced from the official Claude Enterprise Analytics API (`read:analytics` key,
+  minted by org primary owner at claude.ai → Organization settings → API).
+  Key stored only in macOS Keychain (never on disk or in logs); set via menu's
+  "Set Analytics key…" item. Active-seat names and emails shown only in the local
+  menu (PII stays local). Engagement figures lag ~3 days; cost/usage data ~4h.
+  Debug via:
+  ```bash
+  ./ClaudeUsageBar.app/Contents/MacOS/ClaudeUsageBar --once-enterprise [--with-pii]
+  ```
+  Names hidden by default; use `--with-pii` to include them in output.
 
 Cost is the **API-equivalent** figure (token counts × public per-model pricing,
 including the 5m/1h cache-write and cache-read tiers). On a subscription you don't
