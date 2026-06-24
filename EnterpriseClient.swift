@@ -59,15 +59,17 @@ struct URLSessionAnalyticsClient: AnalyticsFetching {
     }
 }
 
-// summaries uses starting_date/ending_date (YYYY-MM-DD); starting_date must be
-// >= 3 days ago, so clamp the month start back if we're in the first days of a month.
-private func ymdUTC(_ d: Date) -> String {
+private let ymdUTCFormatter: DateFormatter = {
     let f = DateFormatter()
     f.locale = Locale(identifier: "en_US_POSIX")
     f.timeZone = TimeZone(identifier: "UTC")
     f.dateFormat = "yyyy-MM-dd"
-    return f.string(from: d)
-}
+    return f
+}()
+
+// summaries uses starting_date/ending_date (YYYY-MM-DD); starting_date must be
+// >= 3 days ago, so clamp the month start back if we're in the first days of a month.
+private func ymdUTC(_ d: Date) -> String { ymdUTCFormatter.string(from: d) }
 
 private func startOfMonthUTC(_ now: Date) -> Date {
     var cal = Calendar(identifier: .gregorian)
@@ -82,13 +84,14 @@ func summariesQuery(now: Date) -> [URLQueryItem] {
     return [URLQueryItem(name: "starting_date", value: ymdUTC(start))]
 }
 
+// Note: summariesQuery uses date-only params (starting_date, YYYY-MM-DD) while
+// reportQuery uses RFC3339 params (starting_at/ending_at) — both anchored to the
+// same UTC month start, but on slightly different time grids per the API.
 func reportQuery(now: Date) -> [URLQueryItem] {
     let start = startOfMonthUTC(now)
-    let f = ISO8601DateFormatter()
-    f.formatOptions = [.withInternetDateTime]
     return [
-        URLQueryItem(name: "starting_at", value: f.string(from: start)),
-        URLQueryItem(name: "ending_at", value: f.string(from: now)),
+        URLQueryItem(name: "starting_at", value: rfc3339.string(from: start)),
+        URLQueryItem(name: "ending_at", value: rfc3339.string(from: now)),
         URLQueryItem(name: "bucket_width", value: "1d"),
         URLQueryItem(name: "limit", value: "31"),   // a full month of daily buckets fits one page
     ]

@@ -273,8 +273,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let key = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard key.hasPrefix("sk-ant-api01-") else {
-            let bad = NSAlert(); bad.messageText = "That doesn't look like a read:analytics key (expected sk-ant-api01-…)."
+        guard key.hasPrefix("sk-ant-") else {
+            let bad = NSAlert(); bad.messageText = "That doesn't look like an Anthropic API key (expected sk-ant-…)."
             bad.runModal(); return
         }
         AnalyticsKeyStore.save(key)
