@@ -219,3 +219,27 @@ func buildActiveSeats(costData: Data, usageData: Data) throws -> [ActiveSeat] {
     }
     return seats.sorted { ($0.cost ?? -1) > ($1.cost ?? -1) }
 }
+
+// MARK: - Assembly
+
+struct AnalyticsPayloads {
+    let summaries: Data
+    let usage: Data
+    let cost: Data
+    let userUsage: Data
+    let userCost: Data
+}
+
+func assembleRollup(_ p: AnalyticsPayloads) throws -> OrgRollup {
+    var r = OrgRollup()
+    try applySummaries(p.summaries, into: &r)
+    try applyAggregateUsage(p.usage, into: &r)
+    try applyAggregateCost(p.cost, into: &r)
+    r.activeSeats = try buildActiveSeats(costData: p.userCost, usageData: p.userUsage)
+    return r
+}
+
+func topSeats(_ seats: [ActiveSeat], limit: Int) -> (shown: [ActiveSeat], more: Int) {
+    guard seats.count > limit else { return (seats, 0) }
+    return (Array(seats.prefix(limit)), seats.count - limit)
+}

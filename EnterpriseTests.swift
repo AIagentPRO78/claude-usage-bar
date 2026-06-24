@@ -76,4 +76,26 @@ func runEnterpriseTests(check: (Bool, String) -> Void, approx: (Double, Double, 
         check(seats[1].userId == "u2", "second by cost")
         check(seats[2].name == "Deleted User" && seats[2].tokens == nil, "deleted user kept; no usage row => tokens nil")
     } catch { check(false, "buildActiveSeats threw: \(error)") }
+
+    // --- top-N cap ---
+    let many = (1...12).map { ActiveSeat(userId: "u\($0)", name: "U\($0)", email: nil, tokens: nil, cost: Double(20 - $0)) }
+    let capped = topSeats(many, limit: 10)
+    check(capped.shown.count == 10 && capped.more == 2, "topSeats caps to 10 with +2 more")
+    let few = topSeats(Array(many.prefix(3)), limit: 10)
+    check(few.shown.count == 3 && few.more == 0, "topSeats no overflow when under limit")
+
+    // --- assembleRollup wires all five payloads together ---
+    do {
+        let p = AnalyticsPayloads(
+            summaries: Data(summariesJSON.utf8),
+            usage: Data(usageJSON.utf8),
+            cost: Data(costJSON.utf8),
+            userUsage: Data(userUsageJSON.utf8),
+            userCost: Data(userCostJSON.utf8))
+        let roll = try assembleRollup(p)
+        check(roll.seatsAssigned == 12 && roll.dau == 8, "assembled summaries")
+        check(roll.requests == 3400 && roll.tokens == 205000000, "assembled aggregate usage")
+        check(approx(roll.cost ?? -1, 214.50, 1e-6), "assembled cost")
+        check(roll.activeSeats.count == 3 && roll.activeSeats[0].name == "Jane Smith", "assembled active seats")
+    } catch { check(false, "assembleRollup threw: \(error)") }
 }
