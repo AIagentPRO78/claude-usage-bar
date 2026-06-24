@@ -42,3 +42,39 @@ enum EnterpriseState: Equatable {
     case offline(OrgRollup?)   // last good rollup, if any
     case ok(OrgRollup)
 }
+
+// MARK: - Summaries
+
+let rfc3339: ISO8601DateFormatter = {
+    let f = ISO8601DateFormatter()
+    f.formatOptions = [.withInternetDateTime]
+    return f
+}()
+
+struct SummariesResponse: Decodable {
+    struct Bucket: Decodable {
+        let startingAt: String
+        let assignedSeatCount: Int
+        let dailyActiveUserCount: Int
+        let weeklyActiveUserCount: Int
+        let monthlyActiveUserCount: Int
+        enum CodingKeys: String, CodingKey {
+            case startingAt              = "starting_at"
+            case assignedSeatCount       = "assigned_seat_count"
+            case dailyActiveUserCount    = "daily_active_user_count"
+            case weeklyActiveUserCount   = "weekly_active_user_count"
+            case monthlyActiveUserCount  = "monthly_active_user_count"
+        }
+    }
+    let summaries: [Bucket]
+}
+
+func applySummaries(_ data: Data, into rollup: inout OrgRollup) throws {
+    let resp = try JSONDecoder().decode(SummariesResponse.self, from: data)
+    guard let latest = resp.summaries.max(by: { $0.startingAt < $1.startingAt }) else { return }
+    rollup.seatsAssigned = latest.assignedSeatCount
+    rollup.dau = latest.dailyActiveUserCount
+    rollup.wau = latest.weeklyActiveUserCount
+    rollup.mau = latest.monthlyActiveUserCount
+    rollup.asOf = rfc3339.date(from: latest.startingAt)
+}
