@@ -105,6 +105,8 @@ struct TestMain {
         check(fmtRemaining(ref(120), now: ref(0)) == "2m", "fmtRemaining minutes only")
         check(fmtRemaining(ref(0), now: ref(100)) == "0m", "fmtRemaining clamps negative")
 
+        runEnterpriseTests(check: TestMain.check, approx: TestMain.approx)
+
         print("\(passed) passed, \(failed) failed")
         exit(failed == 0 ? 0 : 1)
     }

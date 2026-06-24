@@ -9,7 +9,7 @@ BUNDLE_ID="com.ellerywee.claudeusagebar"
 # `./build.sh test` builds and runs the unit tests, then exits.
 if [[ "${1:-}" == "test" ]]; then
     echo "Building tests..."
-    swiftc -O -parse-as-library -o /tmp/cub-tests Tests.swift UsageCore.swift
+    swiftc -O -parse-as-library -o /tmp/cub-tests Tests.swift EnterpriseTests.swift EnterpriseCore.swift EnterpriseClient.swift UsageCore.swift
     echo "Running tests..."
     /tmp/cub-tests
     exit $?
