@@ -143,3 +143,79 @@ func applyAggregateCost(_ data: Data, into rollup: inout OrgRollup) throws {
     }
     rollup.cost = any ? total : nil
 }
+
+// MARK: - Per-user reports → active seats
+
+struct AnalyticsUserActor: Decodable {
+    let userId: String
+    let email: String?
+    let name: String?
+    let deleted: Bool?
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case email, name, deleted
+    }
+}
+
+struct UserCostResponse: Decodable {
+    struct Item: Decodable {
+        let actor: AnalyticsUserActor
+        let amount: String?
+    }
+    let data: [Item]
+}
+
+struct UserUsageResponse: Decodable {
+    struct Item: Decodable {
+        let actor: AnalyticsUserActor
+        let totalTokens: Int?
+        enum CodingKeys: String, CodingKey {
+            case actor
+            case totalTokens = "total_tokens"
+        }
+    }
+    let data: [Item]
+}
+
+func buildActiveSeats(costData: Data, usageData: Data) throws -> [ActiveSeat] {
+    let cost = try JSONDecoder().decode(UserCostResponse.self, from: costData)
+    let usage = try JSONDecoder().decode(UserUsageResponse.self, from: usageData)
+
+    var order: [String] = []
+    var name: [String: String?] = [:]
+    var email: [String: String?] = [:]
+    var costByUser: [String: Double] = [:]
+    var costSeen = Set<String>()
+    var tokensByUser: [String: Int] = [:]
+    var tokensSeen = Set<String>()
+
+    func note(_ a: AnalyticsUserActor) {
+        if name[a.userId] == nil { order.append(a.userId) }
+        if (name[a.userId] ?? nil) == nil { name[a.userId] = a.name }
+        if (email[a.userId] ?? nil) == nil { email[a.userId] = a.email }
+    }
+
+    for item in cost.data {
+        note(item.actor)
+        if let a = item.amount, let usd = parseAmountCents(a) {
+            costByUser[item.actor.userId, default: 0] += usd
+            costSeen.insert(item.actor.userId)
+        }
+    }
+    for item in usage.data {
+        note(item.actor)
+        if let t = item.totalTokens {
+            tokensByUser[item.actor.userId, default: 0] += t
+            tokensSeen.insert(item.actor.userId)
+        }
+    }
+
+    let seats = order.map { uid in
+        ActiveSeat(userId: uid,
+                   name: name[uid] ?? nil,
+                   email: email[uid] ?? nil,
+                   tokens: tokensSeen.contains(uid) ? tokensByUser[uid] : nil,
+                   cost: costSeen.contains(uid) ? costByUser[uid] : nil)
+    }
+    return seats.sorted { ($0.cost ?? -1) > ($1.cost ?? -1) }
+}

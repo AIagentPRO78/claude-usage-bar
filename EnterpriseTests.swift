@@ -52,4 +52,28 @@ func runEnterpriseTests(check: (Bool, String) -> Void, approx: (Double, Double, 
         try applyAggregateCost(Data(costJSON.utf8), into: &rc)
         check(approx(rc.cost ?? -1, 214.50, 1e-6), "aggregate cost summed (cents->USD)")
     } catch { check(false, "applyAggregateCost threw: \(error)") }
+
+    // --- active seats: join user_cost_report (amount) + user_usage_report (total_tokens) ---
+    let userCostJSON = """
+    {"data":[
+      {"actor":{"user_id":"u1","email":"jane@example.com","name":"Jane Smith","deleted":false},"amount":"9620.000000","currency":"USD"},
+      {"actor":{"user_id":"u2","email":"bob@example.com","name":"Bob Lee","deleted":false},"amount":"6110.000000","currency":"USD"},
+      {"actor":{"user_id":"u3","email":null,"name":"Deleted User","deleted":true},"amount":"500.000000","currency":"USD"}
+    ]}
+    """
+    let userUsageJSON = """
+    {"data":[
+      {"actor":{"user_id":"u1","email":"jane@example.com","name":"Jane Smith","deleted":false},"total_tokens":45000000},
+      {"actor":{"user_id":"u2","email":"bob@example.com","name":"Bob Lee","deleted":false},"total_tokens":30000000}
+    ]}
+    """
+    do {
+        let seats = try buildActiveSeats(costData: Data(userCostJSON.utf8), usageData: Data(userUsageJSON.utf8))
+        check(seats.count == 3, "active seats: one per distinct user_id")
+        check(seats[0].userId == "u1" && seats[0].name == "Jane Smith", "active seats sorted by cost desc")
+        check(approx(seats[0].cost ?? -1, 96.20, 1e-6), "seat cost mapped (cents->USD)")
+        check(seats[0].tokens == 45000000, "seat tokens from total_tokens")
+        check(seats[1].userId == "u2", "second by cost")
+        check(seats[2].name == "Deleted User" && seats[2].tokens == nil, "deleted user kept; no usage row => tokens nil")
+    } catch { check(false, "buildActiveSeats threw: \(error)") }
 }
