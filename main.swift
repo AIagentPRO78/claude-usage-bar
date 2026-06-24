@@ -125,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         addModelBreakdown(month, to: menu)
 
         menu.addItem(.separator())
-        addEnterpriseSection(to: menu, now: now)
+        addEnterpriseSection(to: menu)
 
         menu.addItem(.separator())
         menu.addItem(info("Costs are API list-price equivalent,"))
@@ -198,10 +198,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         entFetching = true
+        let lastGood = entLastGood            // capture on main; don't read self.entLastGood off-thread
         entQueue.async { [weak self] in
             guard let self else { return }
             let client = URLSessionAnalyticsClient(apiKey: key)
-            let state = fetchEnterpriseState(client, now: Date(), lastGood: self.entLastGood)
+            let state = fetchEnterpriseState(client, now: Date(), lastGood: lastGood)
             DispatchQueue.main.async {
                 self.entFetching = false
                 if case .ok(let r) = state { self.entLastGood = r }
@@ -211,7 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    private func addEnterpriseSection(to menu: NSMenu, now: Date) {
+    private func addEnterpriseSection(to menu: NSMenu) {
         switch entState {
         case .notConfigured:
             menu.addItem(header("ENTERPRISE"))

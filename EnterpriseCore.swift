@@ -1,8 +1,9 @@
 import Foundation
 
 // Pure logic for the Enterprise Analytics module: domain types, response
-// decoding, aggregation, and formatting. No AppKit, no network — exercised by
-// EnterpriseTests.swift. Reuses fmtCost/fmtTokens from UsageCore.swift.
+// decoding, and aggregation. No AppKit, no network — exercised by
+// EnterpriseTests.swift. Formatting for the menu reuses fmtCost/fmtTokens
+// from UsageCore.swift in main.swift.
 
 // MARK: - Amounts
 

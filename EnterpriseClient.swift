@@ -69,15 +69,21 @@ private func ymdUTC(_ d: Date) -> String {
     return f.string(from: d)
 }
 
+private func startOfMonthUTC(_ now: Date) -> Date {
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = TimeZone(identifier: "UTC")!
+    return cal.date(from: cal.dateComponents([.year, .month], from: now)) ?? now
+}
+
 func summariesQuery(now: Date) -> [URLQueryItem] {
-    let monthStart = startOfMonth(now)                 // from UsageCore.swift
+    let monthStart = startOfMonthUTC(now)
     let threeDaysAgo = now.addingTimeInterval(-3 * 86400)
     let start = min(monthStart, threeDaysAgo)
     return [URLQueryItem(name: "starting_date", value: ymdUTC(start))]
 }
 
 func reportQuery(now: Date) -> [URLQueryItem] {
-    let start = startOfMonth(now)
+    let start = startOfMonthUTC(now)
     let f = ISO8601DateFormatter()
     f.formatOptions = [.withInternetDateTime]
     return [

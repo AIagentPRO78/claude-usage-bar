@@ -136,4 +136,13 @@ func runEnterpriseTests(check: (Bool, String) -> Void, approx: (Double, Double, 
     if case .offline(let lg) = fetchEnterpriseState(netStub, now: Date(), lastGood: prev) {
         check(lg?.seatsAssigned == 9 && lg?.stale == true, "transport error => .offline(lastGood, stale)")
     } else { check(false, "transport error should be .offline") }
+
+    // --- query builders anchor to the UTC month boundary (regression lock for the local/UTC mix) ---
+    let qNow = ISO8601DateFormatter().date(from: "2026-03-15T02:00:00Z")!
+    let rq = reportQuery(now: qNow)
+    let rqStart = rq.first { $0.name == "starting_at" }?.value ?? ""
+    check(rqStart.hasPrefix("2026-03-01"), "reportQuery starting_at uses UTC month start")
+    let sq = summariesQuery(now: qNow)
+    let sqStart = sq.first { $0.name == "starting_date" }?.value ?? ""
+    check(sqStart == "2026-03-01", "summariesQuery starting_date uses UTC month start")
 }
