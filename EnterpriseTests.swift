@@ -21,4 +21,35 @@ func runEnterpriseTests(check: (Bool, String) -> Void, approx: (Double, Double, 
         check(r.dau == 8 && r.wau == 11 && r.mau == 12, "summaries latest bucket DAU/WAU/MAU")
         check(r.asOf != nil, "summaries asOf set from latest starting_at")
     } catch { check(false, "applySummaries threw: \(error)") }
+
+    // --- aggregate usage (nested data[].results[]) ---
+    let usageJSON = """
+    {"data":[
+      {"starting_at":"2026-06-01T00:00:00Z","ending_at":"2026-06-02T00:00:00Z","results":[
+        {"uncached_input_tokens":50000000,"cache_read_input_tokens":70000000,"cache_creation":{"ephemeral_1h_input_tokens":1000000,"ephemeral_5m_input_tokens":1000000},"output_tokens":8000000,"requests":1200}
+      ]},
+      {"starting_at":"2026-06-02T00:00:00Z","ending_at":"2026-06-03T00:00:00Z","results":[
+        {"uncached_input_tokens":30000000,"cache_read_input_tokens":40000000,"cache_creation":{"ephemeral_1h_input_tokens":500000,"ephemeral_5m_input_tokens":500000},"output_tokens":4000000,"requests":2200}
+      ]}
+    ]}
+    """
+    var ru = OrgRollup()
+    do {
+        try applyAggregateUsage(Data(usageJSON.utf8), into: &ru)
+        check(ru.requests == 3400, "aggregate requests summed across buckets")
+        check(ru.tokens == 205000000, "aggregate tokens summed (uncached+cacheRead+cacheCreation+output)")
+    } catch { check(false, "applyAggregateUsage threw: \(error)") }
+
+    // --- aggregate cost (amount = fractional-cents String) ---
+    let costJSON = """
+    {"data":[
+      {"results":[{"amount":"10025.000000","currency":"USD"}]},
+      {"results":[{"amount":"11425.000000","currency":"USD"}]}
+    ]}
+    """
+    var rc = OrgRollup()
+    do {
+        try applyAggregateCost(Data(costJSON.utf8), into: &rc)
+        check(approx(rc.cost ?? -1, 214.50, 1e-6), "aggregate cost summed (cents->USD)")
+    } catch { check(false, "applyAggregateCost threw: \(error)") }
 }

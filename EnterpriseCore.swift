@@ -78,3 +78,68 @@ func applySummaries(_ data: Data, into rollup: inout OrgRollup) throws {
     rollup.mau = latest.monthlyActiveUserCount
     rollup.asOf = rfc3339.date(from: latest.startingAt)
 }
+
+// MARK: - Aggregate usage + cost (bucketed: data[].results[])
+
+struct UsageReportResponse: Decodable {
+    struct CacheCreation: Decodable {
+        let ephemeral1h: Int?
+        let ephemeral5m: Int?
+        enum CodingKeys: String, CodingKey {
+            case ephemeral1h = "ephemeral_1h_input_tokens"
+            case ephemeral5m = "ephemeral_5m_input_tokens"
+        }
+    }
+    struct Result: Decodable {
+        let uncachedInputTokens: Int?
+        let cacheReadInputTokens: Int?
+        let cacheCreation: CacheCreation?
+        let outputTokens: Int?
+        let requests: Int?
+        enum CodingKeys: String, CodingKey {
+            case uncachedInputTokens = "uncached_input_tokens"
+            case cacheReadInputTokens = "cache_read_input_tokens"
+            case cacheCreation = "cache_creation"
+            case outputTokens = "output_tokens"
+            case requests
+        }
+        var tokenSum: Int {
+            (uncachedInputTokens ?? 0) + (cacheReadInputTokens ?? 0)
+            + (cacheCreation?.ephemeral1h ?? 0) + (cacheCreation?.ephemeral5m ?? 0)
+            + (outputTokens ?? 0)
+        }
+    }
+    struct Bucket: Decodable { let results: [Result] }
+    let data: [Bucket]
+}
+
+func applyAggregateUsage(_ data: Data, into rollup: inout OrgRollup) throws {
+    let resp = try JSONDecoder().decode(UsageReportResponse.self, from: data)
+    var tokens = 0, requests = 0
+    for bucket in resp.data {
+        for r in bucket.results {
+            tokens += r.tokenSum
+            requests += (r.requests ?? 0)
+        }
+    }
+    rollup.tokens = tokens
+    rollup.requests = requests
+}
+
+struct CostReportResponse: Decodable {
+    struct Result: Decodable { let amount: String? }
+    struct Bucket: Decodable { let results: [Result] }
+    let data: [Bucket]
+}
+
+func applyAggregateCost(_ data: Data, into rollup: inout OrgRollup) throws {
+    let resp = try JSONDecoder().decode(CostReportResponse.self, from: data)
+    var total = 0.0
+    var any = false
+    for bucket in resp.data {
+        for r in bucket.results {
+            if let a = r.amount, let usd = parseAmountCents(a) { total += usd; any = true }
+        }
+    }
+    rollup.cost = any ? total : nil
+}
