@@ -15,6 +15,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let scanQueue = DispatchQueue(label: "com.ellerywee.claudeusagebar.scan")
     private var scanning = false          // touched on main thread only
     private let refreshInterval: TimeInterval = 5
+    private var entState: EnterpriseState = .notConfigured
+    private var entTimer: Timer?
+    private let entQueue = DispatchQueue(label: "com.ellerywee.claudeusagebar.enterprise")
+    private var entFetching = false                  // main-thread only
+    private let entInterval: TimeInterval = 1800     // 30 min
+    private var entLastGood: OrgRollup?
 
     func applicationDidFinishLaunching(_ note: Notification) {
         // Single instance: if another copy is already running, bow out so we never
@@ -50,6 +56,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         t.tolerance = 1
         RunLoop.main.add(t, forMode: .common)   // keep firing while the menu is open
         timer = t
+
+        refreshEnterprise()
+        let et = Timer(timeInterval: entInterval, repeats: true) { [weak self] _ in self?.refreshEnterprise() }
+        et.tolerance = 60
+        RunLoop.main.add(et, forMode: .common)
+        entTimer = et
     }
 
     func menuWillOpen(_ menu: NSMenu) { menuOpen = true }
@@ -113,6 +125,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         addModelBreakdown(month, to: menu)
 
         menu.addItem(.separator())
+        addEnterpriseSection(to: menu, now: now)
+
+        menu.addItem(.separator())
         menu.addItem(info("Costs are API list-price equivalent,"))
         menu.addItem(info("not your subscription charge."))
         let updated = DateFormatter.localizedString(from: now, dateStyle: .none, timeStyle: .medium)
@@ -120,6 +135,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let r = NSMenuItem(title: "Refresh now", action: #selector(refresh), keyEquivalent: "r")
         r.target = self
         menu.addItem(r)
+        if AnalyticsKeyStore.load() != nil {
+            let c = NSMenuItem(title: "Clear Analytics key", action: #selector(clearAnalyticsKey), keyEquivalent: "")
+            c.target = self
+            menu.addItem(c)
+        }
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
 
         statusItem.menu = menu
@@ -170,6 +190,102 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ])
         return it
     }
+
+    @objc private func refreshEnterprise() {
+        guard !entFetching else { return }
+        guard let key = AnalyticsKeyStore.load() else {
+            entState = .notConfigured
+            return
+        }
+        entFetching = true
+        entQueue.async { [weak self] in
+            guard let self else { return }
+            let client = URLSessionAnalyticsClient(apiKey: key)
+            let state = fetchEnterpriseState(client, now: Date(), lastGood: self.entLastGood)
+            DispatchQueue.main.async {
+                self.entFetching = false
+                if case .ok(let r) = state { self.entLastGood = r }
+                self.entState = state
+                if !self.menuOpen { self.refresh() }
+            }
+        }
+    }
+
+    private func addEnterpriseSection(to menu: NSMenu, now: Date) {
+        switch entState {
+        case .notConfigured:
+            menu.addItem(header("ENTERPRISE"))
+            menu.addItem(info("Not configured"))
+            let set = NSMenuItem(title: "Set Analytics key…", action: #selector(setAnalyticsKey), keyEquivalent: "")
+            set.target = self
+            menu.addItem(set)
+        case .authFailed:
+            menu.addItem(header("ENTERPRISE"))
+            menu.addItem(info("Auth failed — re-set key"))
+            let set = NSMenuItem(title: "Set Analytics key…", action: #selector(setAnalyticsKey), keyEquivalent: "")
+            set.target = self
+            menu.addItem(set)
+        case .offline(let lg):
+            renderRollup(lg, to: menu, offline: true)
+        case .ok(let r):
+            renderRollup(r, to: menu, offline: false)
+        }
+    }
+
+    private func renderRollup(_ rollup: OrgRollup?, to menu: NSMenu, offline: Bool) {
+        guard let r = rollup else {
+            menu.addItem(header("ENTERPRISE"))
+            menu.addItem(info(offline ? "Offline — no data yet" : "No data"))
+            return
+        }
+        menu.addItem(header("ENTERPRISE — MONTH TO DATE"))
+        menu.addItem(row("Seats", "\(r.seatsAssigned) assigned · \(r.dau) active today"))
+        menu.addItem(row("Active users", "DAU \(r.dau) · WAU \(r.wau) · MAU \(r.mau)"))
+        if let req = r.requests { menu.addItem(row("Requests", fmtTokens(req))) }
+        if let t = r.tokens { menu.addItem(row("Tokens", fmtTokens(t))) }
+        menu.addItem(row("Cost", r.cost.map { fmtCost($0) } ?? "n/a"))
+        if !r.activeSeats.isEmpty {
+            menu.addItem(info("Active seats"))
+            let capped = topSeats(r.activeSeats, limit: 10)
+            for s in capped.shown {
+                let label = s.name ?? s.email ?? s.userId
+                let tok = s.tokens.map { fmtTokens($0) } ?? "—"
+                let cost = s.cost.map { fmtCost($0) } ?? "—"
+                menu.addItem(info("   \(label)   \(tok) · \(cost)"))
+            }
+            if capped.more > 0 { menu.addItem(info("   … +\(capped.more) more")) }
+        }
+        var asOf = "—"
+        if let d = r.asOf { asOf = DateFormatter.localizedString(from: d, dateStyle: .medium, timeStyle: .none) }
+        let suffix = offline ? " · offline" : " · engagement ~3d lag"
+        menu.addItem(info("As of \(asOf)\(suffix)"))
+    }
+
+    @objc private func setAnalyticsKey() {
+        let alert = NSAlert()
+        alert.messageText = "Enterprise Analytics key"
+        alert.informativeText = "Paste a read:analytics key (sk-ant-api01-…). Stored only in your Keychain."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        alert.accessoryView = field
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let key = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard key.hasPrefix("sk-ant-api01-") else {
+            let bad = NSAlert(); bad.messageText = "That doesn't look like a read:analytics key (expected sk-ant-api01-…)."
+            bad.runModal(); return
+        }
+        AnalyticsKeyStore.save(key)
+        refreshEnterprise()
+    }
+
+    @objc private func clearAnalyticsKey() {
+        AnalyticsKeyStore.clear()
+        entLastGood = nil
+        entState = .notConfigured
+        refresh()
+    }
 }
 
 // Debug: `ClaudeUsageBar --once` prints totals to stdout and exits (no GUI).
@@ -185,6 +301,29 @@ if CommandLine.arguments.contains("--once") {
     print("cost: \(fmtCost(block.totals.cost))  tokens: \(fmtTokens(block.totals.tokens))")
     print("--- today ---  cost: \(fmtCost(today.cost))  tokens: \(fmtTokens(today.tokens))")
     print("--- month ---  cost: \(fmtCost(month.cost))  proj: \(fmtCost(projectedMonthCost(month.cost, now: now)))")
+    exit(0)
+}
+
+if CommandLine.arguments.contains("--once-enterprise") {
+    let withPII = CommandLine.arguments.contains("--with-pii")
+    guard let key = AnalyticsKeyStore.load() else { print("enterprise: not configured (no key)"); exit(0) }
+    let state = fetchEnterpriseState(URLSessionAnalyticsClient(apiKey: key), now: Date(), lastGood: nil)
+    switch state {
+    case .notConfigured: print("enterprise: not configured")
+    case .authFailed: print("enterprise: auth failed")
+    case .offline: print("enterprise: offline / fetch failed")
+    case .ok(let r):
+        print("enterprise: seats=\(r.seatsAssigned) dau=\(r.dau) wau=\(r.wau) mau=\(r.mau)")
+        print("  requests=\(r.requests.map(String.init) ?? "—") tokens=\(r.tokens.map(fmtTokens) ?? "—") cost=\(r.cost.map(fmtCost) ?? "n/a")")
+        print("  active seats: \(r.activeSeats.count)")
+        if withPII {
+            for s in topSeats(r.activeSeats, limit: 10).shown {
+                print("    \(s.name ?? s.email ?? s.userId)  \(s.tokens.map(fmtTokens) ?? "—") · \(s.cost.map(fmtCost) ?? "—")")
+            }
+        } else {
+            print("  (names hidden; pass --with-pii to show)")
+        }
+    }
     exit(0)
 }
 
