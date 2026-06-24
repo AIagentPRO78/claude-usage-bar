@@ -16,7 +16,7 @@ if [[ "${1:-}" == "test" ]]; then
 fi
 
 echo "Compiling..."
-swiftc -O -o "$BIN" main.swift UsageCore.swift -framework Cocoa
+swiftc -O -o "$BIN" main.swift UsageCore.swift EnterpriseCore.swift EnterpriseClient.swift Keychain.swift -framework Cocoa
 
 echo "Assembling $APP..."
 rm -rf "$APP"
