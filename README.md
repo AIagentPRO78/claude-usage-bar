@@ -117,4 +117,4 @@ rm -rf ~/Applications/ClaudeUsageBar.app
 
 ## License
 
-[MIT](LICENSE) © Ellery Wee
+[MIT](LICENSE) © AIagentPRO78
