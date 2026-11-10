@@ -8,10 +8,14 @@ BUNDLE_ID="com.ellerywee.claudeusagebar"
 
 # `./build.sh test` builds and runs the unit tests, then exits.
 if [[ "${1:-}" == "test" ]]; then
+    # Build into a private, unpredictably named directory (mktemp -d creates it
+    # mode 0700) instead of a fixed path in shared /tmp, and remove it on exit.
+    TEST_DIR="$(mktemp -d)"
+    trap 'rm -rf "$TEST_DIR"' EXIT
     echo "Building tests..."
-    swiftc -O -parse-as-library -o /tmp/cub-tests Tests.swift EnterpriseTests.swift EnterpriseCore.swift EnterpriseClient.swift UsageCore.swift
+    swiftc -O -parse-as-library -o "$TEST_DIR/cub-tests" Tests.swift EnterpriseTests.swift EnterpriseCore.swift EnterpriseClient.swift UsageCore.swift
     echo "Running tests..."
-    /tmp/cub-tests
+    "$TEST_DIR/cub-tests"
     exit $?
 fi
 
