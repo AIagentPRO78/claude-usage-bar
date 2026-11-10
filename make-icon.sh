@@ -50,7 +50,8 @@ img.resize((1024, 1024), Image.LANCZOS).save("assets/AppIcon_1024.png")
 print("master -> assets/AppIcon_1024.png")
 PY
 
-ICONSET="$(mktemp -d)/AppIcon.iconset"; mkdir -p "$ICONSET"; M="assets/AppIcon_1024.png"
+ICON_TMP="$(mktemp -d)"; trap 'rm -rf "$ICON_TMP"' EXIT
+ICONSET="$ICON_TMP/AppIcon.iconset"; mkdir -p "$ICONSET"; M="assets/AppIcon_1024.png"
 sips -z 16 16   "$M" --out "$ICONSET/icon_16x16.png"      >/dev/null
 sips -z 32 32   "$M" --out "$ICONSET/icon_16x16@2x.png"   >/dev/null
 sips -z 32 32   "$M" --out "$ICONSET/icon_32x32.png"      >/dev/null
